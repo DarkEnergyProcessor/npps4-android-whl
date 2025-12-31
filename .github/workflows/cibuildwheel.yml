@@ -85,7 +85,7 @@ jobs:
         PYVER: ${{ inputs.python_version }}
         CIBW_TEST_SKIP: '*'
         ANDROID_API_LEVEL: ${{ inputs.android_api }}
-      run: CIBW_BUILD=cp${PYVER//./}-*uvx --python 3.14 cibuildwheel --platform android --archs arm64_v8a,x86_64
+      run: CIBW_BUILD=cp${PYVER//./}-* uvx --python 3.14 cibuildwheel --platform android --archs arm64_v8a,x86_64
 
     - name: Artifact
       uses: actions/upload-artifact@v6

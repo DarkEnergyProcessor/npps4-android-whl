@@ -58,6 +58,8 @@ jobs:
         fi
 
         echo "branch=$TARGET_TAG" >> $GITHUB_OUTPUT
+    - name: Add Android Toolchain
+      run: echo "$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
     - name: Install uv
       uses: astral-sh/setup-uv@v7
     - name: Setup Rust
