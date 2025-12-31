@@ -38,6 +38,7 @@ jobs:
       env:
         INPUT_TAG: ${{ inputs.branch }}
         REPO: ${{ inputs.repo }}
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
         # Determine the target tag
         if [ -z "$INPUT_TAG" ]; then
