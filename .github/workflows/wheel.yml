@@ -44,9 +44,16 @@ jobs:
       repo: Legrandin/pycryptodome
       artifact: pycryptodomex
 
+  pyyaml:
+    name: Build pyyaml
+    uses: ./.github/workflows/cibuildwheel.yml
+    with:
+      repo: yaml/pyyaml
+      artifact: pyyaml
+
   bundle:
     name: Bundle All Wheels
-    needs: [pydantic-core, watchfiles, markupsafe, greenlet, sqlalchemy, pycryptodomex]
+    needs: [pydantic-core, watchfiles, markupsafe, greenlet, sqlalchemy, pycryptodomex, pyyaml]
     runs-on: ubuntu-24.04
     steps:
     - name: Setup Python
