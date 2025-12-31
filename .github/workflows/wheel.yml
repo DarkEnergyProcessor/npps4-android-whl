@@ -50,10 +50,17 @@ jobs:
     with:
       repo: yaml/pyyaml
       artifact: pyyaml
+  
+  httptools:
+    name: Build httptools
+    uses: ./.github/workflows/cibuildwheel.yml
+    with:
+      repo: MagicStack/httptools
+      artifact: httptools
 
   bundle:
     name: Bundle All Wheels
-    needs: [pydantic-core, watchfiles, markupsafe, greenlet, sqlalchemy, pycryptodomex, pyyaml]
+    needs: [pydantic-core, watchfiles, markupsafe, greenlet, sqlalchemy, pycryptodomex, pyyaml, httptools]
     runs-on: ubuntu-24.04
     steps:
     - name: Setup Python
