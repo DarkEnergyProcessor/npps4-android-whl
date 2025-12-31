@@ -58,30 +58,28 @@ jobs:
         fi
 
         echo "branch=$TARGET_TAG" >> $GITHUB_OUTPUT
+
     - name: Add Android Toolchain
       run: echo "$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+
     - name: Install uv
       uses: astral-sh/setup-uv@v7
+
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
+
     - name: Setup Rust Android Toolchain
       run: rustup target add ${{ matrix.triplet }}
+
     - name: Download Prebuilt Python
       run: curl -Lfo py.tar.gz https://www.python.org/ftp/python/${{ inputs.python_version }}.0/python-${{ inputs.python_version }}.0-${{ matrix.triplet }}.tar.gz
+
     - name: Extract Prebuilt Python
       run: |
         set -e
         mkdir py
         (cd py && tar xzvf ../py.tar.gz)
-    - name: Define Uppercase Triplet
-      id: triplet
-      run: |
-        input="${{ matrix.triplet }}"
 
-        output="${input//-/_}"
-        output="${output^^}"
-
-        echo "target=${output}" >> "$GITHUB_OUTPUT"
     - name: Checkout Library
       uses: actions/checkout@v6
       with:
@@ -89,16 +87,18 @@ jobs:
         ref: ${{ steps.branch.outputs.branch }}
         submodules: recursive
         path: library
+
     - name: Build
       working-directory: library
       env:
+        CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS: -L${{ github.workspace }}/py/prefix/lib -Clink-arg=-Wl,-z,max-page-size=16384
+        CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS: -L${{ github.workspace }}/py/prefix/lib -Clink-arg=-Wl,-z,max-page-size=16384
+        CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: aarch64-linux-android${{ inputs.android_api }}-clang
+        CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: x86_64-linux-android${{ inputs.android_api }}-clang
         CARGO_BUILD_TARGET: ${{ matrix.triplet }}
         PYO3_CROSS: 1
-      run: |
-        set -e
-        CARGO_TARGET_${{ steps.triplet.outputs.target }}_RUSTFLAGS='-L${{ github.workspace }}/py/prefix/lib -Clink-arg=-Wl,-z,max-page-size=16384' \
-        CARGO_TARGET_${{ steps.triplet.outputs.target }}_LINKER=${{ matrix.triplet }}${{ inputs.android_api }}-clang \
-        uvx --python 3.14 maturin build --verbose --release --target ${{ matrix.triplet }} --auditwheel skip -i python${{ inputs.python_version }}
+      run: uvx --python 3.14 maturin build --verbose --release --target ${{ matrix.triplet }} --auditwheel skip -i python${{ inputs.python_version }}
+
       # maturin 1.11.0 hopefully doesn't need this anymore
     - name: Fix Wheel Names
       shell: python
