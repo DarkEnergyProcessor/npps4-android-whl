@@ -1,0 +1,117 @@
+name: Build With maturin
+
+on:
+  workflow_call:
+    inputs:
+      repo:
+        description: GitHub Repository
+        required: true
+        type: string
+      artifact:
+        description: Artifact Name
+        required: true
+        type: string
+      branch:
+        description: Git ref (tag/branch)
+        required: true
+        type: string
+      python_version:
+        description: Python version
+        required: false
+        type: string
+        default: '3.14'
+      android_api:
+        description: Android API level
+        required: false
+        type: number
+        default: 24
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        triplet: [aarch64-linux-android, x86_64-linux-android]
+    steps:
+    - name: Determine Branch
+      id: branch
+      env:
+        INPUT_TAG: ${{ inputs.branch }}
+        REPO: ${{ inputs.repo }}
+      run: |
+        # Determine the target tag
+        if [ -z "$INPUT_TAG" ]; then
+          echo "No tag provided. Fetching latest release from API..."
+          # Fetch latest release tag name, fallback to tags if no official release exists
+          TARGET_TAG=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/releases/latest" | jq -r .tag_name)
+          
+          if [ "$TARGET_TAG" == "null" ]; then
+            echo "No official Release found. Fetching latest raw tag..."
+            TARGET_TAG=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/$REPO/tags" | jq -r '.[0].name')
+          fi
+        else
+          echo "Using provided tag: $INPUT_TAG"
+          TARGET_TAG=$INPUT_TAG
+        fi
+
+        echo "branch=$TARGET_TAG" >> $GITHUB_OUTPUT
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+    - name: Setup Rust Android Toolchain
+      run: rustup target add ${{ matrix.triplet }}
+    - name: Download Prebuilt Python
+      run: curl -Lfo py.tar.gz https://www.python.org/ftp/python/${{ inputs.python_version }}.0/python-${{ inputs.python_version }}.0-${{ matrix.triplet }}.tar.gz
+    - name: Extract Prebuilt Python
+      run: |
+        set -e
+        mkdir py
+        (cd py && tar xzvf ../py.tar.gz)
+    - name: Define Uppercase Triplet
+      id: triplet
+      run: |
+        input="${{ matrix.triplet }}"
+
+        output="${input//-/_}"
+        output="${output^^}"
+
+        echo "target=${output}" >> "$GITHUB_OUTPUT"
+    - name: Checkout Library
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ inputs.repo }}
+        ref: ${{ steps.branch.outputs.branch }}
+        submodules: recursive
+        path: library
+    - name: Build
+      working-directory: library
+      env:
+        CARGO_BUILD_TARGET: ${{ matrix.triplet }}
+        PYO3_CROSS: 1
+      run: |
+        set -e
+        CARGO_TARGET_${{ steps.triplet.outputs.target }}_RUSTFLAGS='-L${{ github.workspace }}/py/prefix/lib -Clink-arg=-Wl,-z,max-page-size=16384' \
+        CARGO_TARGET_${{ steps.triplet.outputs.target }}_LINKER=${{ matrix.triplet }}${{ inputs.android_api }}-clang \
+        uvx --python 3.14 maturin build --verbose --release --target ${{ matrix.triplet }} --auditwheel skip -i python${{ inputs.python_version }}
+      # maturin 1.11.0 hopefully doesn't need this anymore
+    - name: Fix Wheel Names
+      shell: python
+      working-directory: library/target/wheels
+      run: |
+        import glob
+        import os
+
+        for file in glob.glob("*.whl"):
+            if file.endswith("linux_aarch64.whl"):
+                os.rename(file, file.replace("linux_aarch64.whl", "android_24_arm64_v8a.whl"))
+            elif file.endswith("linux_x86_64.whl"):
+                os.rename(file, file.replace("linux_x86_64.whl", "android_24_x86_64.whl"))
+    - name: Artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: ${{ inputs.artifact }}-${{ matrix.triplet }}
+        path: library/target/wheels/*.whl
+        if-no-files-found: error

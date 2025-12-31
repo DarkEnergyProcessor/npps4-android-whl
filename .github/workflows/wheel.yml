@@ -1,0 +1,77 @@
+name: Build Wheels
+on: workflow_dispatch
+
+jobs:
+  pydantic-core:
+    name: Build pydantic-core
+    uses: ./.github/workflows/maturin.yml
+    with:
+      repo: pydantic/pydantic-core
+      artifact: pydantic-core
+
+  watchfiles:
+    name: Build watchfiles
+    uses: ./.github/workflows/maturin.yml
+    with:
+      repo: samuelcolvin/watchfiles
+      artifact: watchfiles
+
+  markupsafe:
+    name: Build MarkupSafe
+    uses: ./.github/workflows/cibuildwheel.yml
+    with:
+      repo: pallets/markupsafe
+      artifact: markupsafe
+
+  greenlet:
+    name: Build Greenlet
+    uses: ./.github/workflows/cibuildwheel.yml
+    with:
+      repo: python-greenlet/greenlet
+      artifact: greenlet
+
+  sqlalchemy:
+    name: Build SQLAlchemy
+    uses: ./.github/workflows/cibuildwheel.yml
+    with:
+      repo: sqlalchemy/sqlalchemy
+      artifact: sqlalchemy
+
+  pycryptodomex:
+    name: Build pycryptodomex
+    uses: ./.github/workflows/cibuildwheel.yml
+    with:
+      repo: Legrandin/pycryptodome
+      artifact: pycryptodomex
+
+  bundle:
+    name: Bundle All Wheels
+    needs: [pydantic-core, watchfiles, markupsafe, greenlet, sqlalchemy, pycryptodomex]
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.14'
+
+    - name: Install elftools
+      run: pip install pyelftools
+
+    - name: Checkout
+      uses: actions/checkout@v6
+
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v7
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    - name: Validate 16KiB Alignment
+      run: python validate_wheel_16k.py
+
+    - name: Artifact Bundled Wheels
+      uses: actions/upload-artifact@v6
+      with:
+        name: bundle
+        path: artifacts/**/*.whl
+        if-no-files-found: error

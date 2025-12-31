@@ -1,0 +1,94 @@
+name: Build With cibuildwheel
+
+on:
+  workflow_call:
+    inputs:
+      repo:
+        description: GitHub Repository
+        required: true
+        type: string
+      artifact:
+        description: Artifact Name
+        required: true
+        type: string
+      branch:
+        description: Git ref (tag/branch)
+        required: false
+        type: string
+      python_version:
+        description: Python version
+        required: false
+        type: string
+        default: '3.14'
+      android_api:
+        description: Android API level
+        required: false
+        type: number
+        default: 24
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Determine Branch
+      id: branch
+      env:
+        INPUT_TAG: ${{ inputs.branch }}
+        REPO: ${{ inputs.repo }}
+      run: |
+        # Determine the target tag
+        if [ -z "$INPUT_TAG" ]; then
+          echo "No tag provided. Fetching latest release from API..."
+          # Fetch latest release tag name, fallback to tags if no official release exists
+          TARGET_TAG=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/releases/latest" | jq -r .tag_name)
+          
+          if [ "$TARGET_TAG" == "null" ]; then
+            echo "No official Release found. Fetching latest raw tag..."
+            TARGET_TAG=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/$REPO/tags" | jq -r '.[0].name')
+          fi
+        else
+          echo "Using provided tag: $INPUT_TAG"
+          TARGET_TAG=$INPUT_TAG
+        fi
+
+        echo "branch=$TARGET_TAG" >> $GITHUB_OUTPUT
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Checkout Library
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ inputs.repo }}
+        ref: ${{ steps.branch.outputs.branch }}
+        submodules: recursive
+        path: library
+
+    - name: Mark Separate Namespace (for pycryptodomex)
+      if: inputs.repo == 'Legrandin/pycryptodome'
+      working-directory: library
+      run: touch .separate_namespace
+
+    - name: Remove dev tag build (for SQLAlchemy)
+      if: inputs.repo == 'sqlalchemy/sqlalchemy'
+      working-directory: library
+      run: |
+        [[ -f setup.cfg ]] && sed -i 's/^tag_build = dev/# &/' setup.cfg
+        [[ -f pyproject.toml ]] && sed -i 's/^tag-build = "dev"/# &/' pyproject.toml
+
+    - name: Build
+      working-directory: library
+      env:
+        PYVER: ${{ inputs.python_version }}
+        CIBW_TEST_SKIP: '*'
+        ANDROID_API_LEVEL: ${{ inputs.android_api }}
+      run: CIBW_BUILD=cp${PYVER//./}-*uvx --python 3.14 cibuildwheel --platform android --archs arm64_v8a,x86_64
+
+    - name: Artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: ${{ inputs.artifact }}
+        path: library/wheelhouse/*.whl
+        if-no-files-found: error
