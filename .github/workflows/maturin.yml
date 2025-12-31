@@ -13,7 +13,7 @@ on:
         type: string
       branch:
         description: Git ref (tag/branch)
-        required: true
+        required: false
         type: string
       python_version:
         description: Python version
