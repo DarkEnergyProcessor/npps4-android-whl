@@ -7,9 +7,9 @@ This repository contains recipe and prebuilt wheels of Python packages required 
 Usage
 -----
 
-Use `--extra-index-url https://ghdep.npdep.com/npps4-android-whl/` when installing Android packages, e.g.
+Use `--extra-index-url https://npps4-whl.npdep.com/` when installing Android packages, e.g.
 ```sh
-pip install --extra-index-url https://ghdep.npdep.com/npps4-android-whl/ sqlalchemy
+pip install --extra-index-url https://npps4-whl.npdep.com/ sqlalchemy
 ```
 
 If using [Chaquopy](https://chaquo.com/chaquopy/), add this to your `app/build.gradle`:
@@ -23,7 +23,7 @@ chaquopy {
 		// ...
 
         pip {
-            options("--extra-index-url", "https://ghdep.npdep.com/npps4-android-whl/") // Add this
+            options("--extra-index-url", "https://npps4-whl.npdep.com/") // Add this
 			// Other pipp stuff here
         }
 		// ...
