@@ -6,6 +6,10 @@ import re
 import zipfile
 
 
+def normalize_package_name(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def get_package_name(wheel_path: str):
     if os.path.isfile(wheel_path):
         with zipfile.ZipFile(wheel_path, "r") as z:
@@ -15,7 +19,7 @@ def get_package_name(wheel_path: str):
                         content = f.read().decode("utf-8")
                         matches = re.search(r"^Name:\s*(\S+)", content, re.MULTILINE)
                         if matches:
-                            return str(matches.group(1))
+                            return normalize_package_name(matches.group(1))
     return None
 
 
