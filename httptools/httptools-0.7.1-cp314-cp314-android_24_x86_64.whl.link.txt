@@ -1,0 +1,1 @@
+https://github.com/DarkEnergyProcessor/npps4-android-whl/releases/download/untagged-201f95a12d76e7180ee3/httptools-0.7.1-cp314-cp314-android_24_x86_64.whl
