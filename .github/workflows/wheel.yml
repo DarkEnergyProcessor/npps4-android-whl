@@ -1,5 +1,11 @@
 name: Build Wheels
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      release_tagname:
+        description: Release Tag Name (or empty to not do release)
+        required: false
+        default: ''
 
 jobs:
   pydantic-core:
@@ -89,3 +95,80 @@ jobs:
         name: bundle
         path: artifacts/**/*.whl
         if-no-files-found: error
+
+  update-repo:
+    name: Update Simple Repository
+    needs: bundle
+    if: inputs.release_tagname != ''
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.14'
+
+    - name: Checkout
+      uses: actions/checkout@v6
+
+    - name: Checkout gh-pages
+      uses: actions/checkout@v6
+      with:
+        ref: gh-pages
+        path: repository
+        fetch-depth: 0
+
+    - name: Download Artifact
+      uses: actions/download-artifact@v7
+      with:
+        name: bundle
+        path: artifacts
+
+    - name: Create GitHub Release
+      id: release
+      uses: softprops/action-gh-release@v2
+      with:
+        body: "Wheels"
+        tag_name: ${{ inputs.release_tagname }}
+        files: artifacts/*.whl
+        fail_on_unmatched_files: true
+
+    - name: Write json_link_file.json
+      shell: python
+      env:
+        ASSETS_DATA: ${{ steps.release.outputs.assets }}
+      run: |
+        import json
+        import os
+        import sys
+
+        wheel_links: dict[str, str|None] = {}
+        for wheel in os.scandir("artifacts"):
+          if wheel.name.endswith(".whl"):
+            wheel_links[wheel.name] = None
+
+        assets = json.loads(os.environ["ASSETS_DATA"])
+        for asset in assets:
+          if asset["name"] in wheel_links:
+            wheel_links[asset["name"]] = asset["browser_download_url"]
+
+        has_missing_link = False
+        for wheel, link in  wheel_links.items():
+          if link is None:
+            print(f"{wheel} link is missing")
+
+        if has_missing_link:
+          sys.exit(1)
+
+        with open("json_link_file.json", "w", encoding="utf-8") as f:
+          json.dump(wheel_links, f)
+
+    - name: Update Index
+      working-directory: repository
+      run: python ../build_index.py ../json_link_file.json
+
+    - name: Commit New Index
+      uses: EndBug/add-and-commit@v9
+      with:
+        cwd: repository
+        default_author: github_actions
+        message: "Deploy release ${{ inputs.release_tagname }}"
