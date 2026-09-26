@@ -41,12 +41,19 @@ def update_index(link_dict: dict[str, str]):
 
         package_list.add(pkg_name)
 
+    # Keep packages published outside the current wheel release, such as honkypy.
+    for entry in os.scandir("."):
+        if not entry.is_dir() or normalize_package_name(entry.name) != entry.name:
+            continue
+        if any(file.name.endswith(".link.txt") for file in os.scandir(entry.path)):
+            package_list.add(entry.name)
+
     package_link_list: dict[str, list[tuple[str, str]]] = {}  # For writing the index
     for pkg_name in sorted(package_list):
         # Enumerate all package versions
         links: list[tuple[str, str]] = []
 
-        for file in os.scandir(pkg_name):
+        for file in sorted(os.scandir(pkg_name), key=lambda file: file.name):
             if file.name.endswith(".link.txt"):
                 with open(file.path, "r", encoding="utf-8") as f:
                     links.append((file.name[:-9], f.read()))
@@ -64,19 +71,27 @@ def main():
     with open(args.json_link_input) as f:
         packages = update_index(json.load(f))
 
+    # This is the source for the published root page; edit it here, not on gh-pages.
     # Write index
     with open("index.html", "w", encoding="utf-8", newline="") as root_f:
         root_f.write("<!DOCTYPE html>\n<html>\n<body>\n")
-        root_f.write(
-            """<p>
+        root_f.write("""<p>
 This site contains precompiled wheels used by <a href="https://github.com/DarkEnergyProcessor/NPPS4-Android">Android</a>
 version of <a href="https://github.com/DarkEnergyProcessor/NPPS4">NPPS4</a>.
 </p>
 <p>
-Packages are compiled with 16KiB page size and targets only Python 3.14 with arm64-v8a and x86-64 ABI.
+Packages are compiled with these options:
 </p>
-"""
-        )
+<ul>
+<li>16KiB page size.</li>
+<li>Targets Python 3.14.</li>
+<li>arm64-v8a and x86-64 ABI.</li>
+<li>Android 7.0 or later (API 24).</li>
+</ul>
+<p>
+The repository can be found <a href="https://github.com/DarkEnergyProcessor/npps4-android-whl">in GitHub</a>.
+</p>
+""")
 
         for pkg_name, links in packages.items():
             with open(f"{pkg_name}/index.html", "w", encoding="utf-8", newline="") as sub_f:
