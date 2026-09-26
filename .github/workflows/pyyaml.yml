@@ -1,0 +1,93 @@
+name: Build PyYAML
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - arch: arm64_v8a
+            abi: arm64-v8a
+          - arch: x86_64
+            abi: x86_64
+    steps:
+    - name: Determine PyYAML release
+      id: release
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        tag=$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+          https://api.github.com/repos/yaml/pyyaml/releases/latest | jq -er .tag_name)
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        ignore-empty-workdir: true
+
+    - name: Checkout PyYAML
+      uses: actions/checkout@v6
+      with:
+        repository: yaml/pyyaml
+        ref: ${{ steps.release.outputs.tag }}
+        path: library
+
+    - name: Checkout libyaml
+      uses: actions/checkout@v6
+      with:
+        repository: yaml/libyaml
+        ref: 0.2.5
+        path: libyaml
+
+    - name: Build static libyaml for Android
+      env:
+        ANDROID_ABI: ${{ matrix.abi }}
+      run: |
+        set -euo pipefail
+        cmake -S libyaml -B libyaml-build \
+          -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+          -DANDROID_ABI="$ANDROID_ABI" \
+          -DANDROID_PLATFORM=android-24 \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DBUILD_TESTING=OFF \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/libyaml-install"
+        cmake --build libyaml-build --parallel
+        cmake --install libyaml-build
+
+    - name: Configure PyYAML build
+      run: |
+        cat > "$GITHUB_WORKSPACE/pyyaml-cibw.toml" <<EOF
+        [tool.cibuildwheel.config-settings]
+        pyyaml_build_config = '{"include_dirs": ["$GITHUB_WORKSPACE/libyaml-install/include"], "library_dirs": ["$GITHUB_WORKSPACE/libyaml-install/lib"]}'
+        EOF
+
+    - name: Build Android wheel
+      working-directory: library
+      env:
+        CIBW_TEST_SKIP: '*'
+        PYYAML_FORCE_CYTHON: '1'
+        PYYAML_FORCE_LIBYAML: '1'
+        CIBW_BUILD: cp314-*
+        CIBW_ARCH: ${{ matrix.arch }}
+        ANDROID_API_LEVEL: 24
+      run: uvx --python 3.14 cibuildwheel --platform android --archs "$CIBW_ARCH" --config-file "$GITHUB_WORKSPACE/pyyaml-cibw.toml"
+
+    - name: Verify C extension
+      working-directory: library
+      run: |
+        set -euo pipefail
+        wheels=(wheelhouse/*.whl)
+        test "${#wheels[@]}" -eq 1
+        unzip -Z1 "${wheels[0]}" | grep -E '^yaml/_yaml.*\.so$'
+
+    - name: Artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: pyyaml-${{ matrix.arch }}
+        path: library/wheelhouse/*.whl
+        if-no-files-found: error
