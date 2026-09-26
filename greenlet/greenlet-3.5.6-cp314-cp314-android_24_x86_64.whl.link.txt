@@ -1,0 +1,1 @@
+https://github.com/DarkEnergyProcessor/npps4-android-whl/releases/download/20260926/greenlet-3.5.6-cp314-cp314-android_24_x86_64.whl
