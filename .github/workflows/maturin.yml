@@ -99,6 +99,8 @@ jobs:
         CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER: x86_64-linux-android${{ inputs.android_api }}-clang
         CARGO_BUILD_TARGET: ${{ matrix.triplet }}
         PYO3_CROSS: 1
+        PYO3_CROSS_LIB_DIR: ${{ github.workspace }}/py/prefix/lib
+        PYO3_CROSS_PYTHON_VERSION: ${{ inputs.python_version }}
       run: |
         set -e
         unset RUSTFLAGS

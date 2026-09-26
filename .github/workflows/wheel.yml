@@ -52,10 +52,7 @@ jobs:
 
   pyyaml:
     name: Build pyyaml
-    uses: ./.github/workflows/cibuildwheel.yml
-    with:
-      repo: yaml/pyyaml
-      artifact: pyyaml
+    uses: ./.github/workflows/pyyaml.yml
   
   httptools:
     name: Build httptools

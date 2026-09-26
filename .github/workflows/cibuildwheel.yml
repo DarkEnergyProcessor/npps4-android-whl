@@ -81,6 +81,11 @@ jobs:
         [[ -f setup.cfg ]] && sed -i 's/^tag_build = dev/# &/' setup.cfg
         [[ -f pyproject.toml ]] && sed -i 's/^tag-build = "dev"/# &/' pyproject.toml
 
+    - name: Remove obsolete free-threading enable group (for MarkupSafe)
+      if: inputs.repo == 'pallets/markupsafe'
+      working-directory: library
+      run: sed -i '/^enable = "cpython-freethreading"$/d' pyproject.toml
+
     - name: Build
       working-directory: library
       env:
